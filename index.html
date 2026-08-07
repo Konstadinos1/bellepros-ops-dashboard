@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bellepros Laval — Ops Dashboard</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --border: #334155;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+    --green: #22c55e;
+    --yellow: #eab308;
+    --red: #ef4444;
+    --blue: #3b82f6;
+    --purple: #a855f7;
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem;
+  }
+  .kpi-value {
+    font-size: 2rem;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+  .kpi-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin-bottom: 0.25rem;
+  }
+  .status-green { color: var(--green); }
+  .status-yellow { color: var(--yellow); }
+  .status-red { color: var(--red); }
+  .bg-green { background: rgba(34,197,94,0.15); border-color: rgba(34,197,94,0.3); }
+  .bg-yellow { background: rgba(234,179,8,0.15); border-color: rgba(234,179,8,0.3); }
+  .bg-red { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.3); }
+  input, select {
+    background: #0f172a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+    color: var(--text);
+    width: 100%;
+    font-size: 0.875rem;
+  }
+  input:focus, select:focus {
+    outline: none;
+    border-color: var(--blue);
+  }
+  label {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-bottom: 0.25rem;
+    display: block;
+  }
+  .btn {
+    padding: 0.625rem 1.25rem;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.875rem;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+  }
+  .btn-primary {
+    background: var(--blue);
+    color: white;
+  }
+  .btn-primary:hover { background: #2563eb; }
+  .btn-secondary {
+    background: var(--border);
+    color: var(--text);
+  }
+  .btn-secondary:hover { background: #475569; }
+  .tab-active {
+    border-bottom: 2px solid var(--blue);
+    color: var(--text);
+  }
+  .tab-inactive {
+    border-bottom: 2px solid transparent;
+    color: var(--muted);
+  }
+  .table-row { border-bottom: 1px solid var(--border); }
+  .table-row:last-child { border-bottom: none; }
+  .pulse-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    display: inline-block; margin-right: 6px;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .scroll-hide::-webkit-scrollbar { display: none; }
+  .scroll-hide { -ms-overflow-style: none; scrollbar-width: none; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="sticky top-0 z-50 bg-slate-900/95 backdrop-blur border-b border-slate-700 px-4 py-3 flex items-center justify-between">
+  <div class="flex items-center gap-3">
+    <div class="text-2xl">🍔</div>
+    <div>
+      <h1 class="text-lg font-bold">Bellepros Laval 440</h1>
+      <p class="text-xs text-slate-400">Operations Dashboard</p>
+    </div>
+  </div>
+  <div class="flex items-center gap-2">
+    <span class="pulse-dot bg-green-500"></span>
+    <span class="text-xs text-slate-400" id="lastUpdate">—</span>
+  </div>
+</header>
+
+<!-- TABS -->
+<nav class="flex border-b border-slate-700 px-4 sticky top-[57px] z-40 bg-slate-900/95 backdrop-blur overflow-x-auto scroll-hide">
+  <button onclick="switchTab('today')" id="tab-today" class="px-4 py-3 text-sm font-medium whitespace-nowrap tab-active">📊 Today</button>
+  <button onclick="switchTab('week')" id="tab-week" class="px-4 py-3 text-sm font-medium whitespace-nowrap tab-inactive">📅 Week</button>
+  <button onclick="switchTab('leakage')" id="tab-leakage" class="px-4 py-3 text-sm font-medium whitespace-nowrap tab-inactive">💧 Leakage</button>
+  <button onclick="switchTab('scoreboard')" id="tab-scoreboard" class="px-4 py-3 text-sm font-medium whitespace-nowrap tab-inactive">🏆 Friday</button>
+  <button onclick="switchTab('enter')" id="tab-enter" class="px-4 py-3 text-sm font-medium whitespace-nowrap tab-inactive">✏️ Enter Data</button>
+</nav>
+
+<main class="max-w-6xl mx-auto px-4 py-6">
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB: TODAY -->
+<!-- ═══════════════════════════════════════ -->
+<div id="content-today" class="space-y-6">
+
+  <!-- Date selector -->
+  <div class="flex items-center gap-3">
+    <label class="text-xs text-slate-400">Viewing:</label>
+    <input type="date" id="todayDate" onchange="renderToday()" class="max-w-[180px]">
+  </div>
+
+  <!-- KPI CARDS -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="card" id="kpi-sales">
+      <div class="kpi-label">Net Sales</div>
+      <div class="kpi-value" id="val-sales">$—</div>
+      <div class="text-xs text-slate-400 mt-1" id="target-sales">Target: $2,500+</div>
+    </div>
+    <div class="card" id="kpi-txns">
+      <div class="kpi-label">Transactions</div>
+      <div class="kpi-value" id="val-txns">—</div>
+      <div class="text-xs text-slate-400 mt-1" id="target-txns">Target: 140+</div>
+    </div>
+    <div class="card" id="kpi-check">
+      <div class="kpi-label">Avg Check</div>
+      <div class="kpi-value" id="val-check">$—</div>
+      <div class="text-xs text-slate-400 mt-1" id="target-check">Benchmark: $20.79</div>
+    </div>
+    <div class="card" id="kpi-walkaways">
+      <div class="kpi-label">Walk-Aways</div>
+      <div class="kpi-value" id="val-walkaways">—</div>
+      <div class="text-xs text-slate-400 mt-1" id="target-walkaways">Target: 0-2</div>
+    </div>
+  </div>
+
+  <!-- SECONDARY KPIs -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="card">
+      <div class="kpi-label">Food Cost %</div>
+      <div class="kpi-value" id="val-foodcost">—%</div>
+      <div class="text-xs text-slate-400 mt-1">Target: ≤31%</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">Labor %</div>
+      <div class="kpi-value" id="val-labor">—%</div>
+      <div class="text-xs text-slate-400 mt-1">Target: ≤27%</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">Voids</div>
+      <div class="kpi-value" id="val-voids">$—</div>
+      <div class="text-xs text-slate-400 mt-1">Target: <$50/day</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">Ticket Time</div>
+      <div class="kpi-value" id="val-ticket">—s</div>
+      <div class="text-xs text-slate-400 mt-1">Target: <90s</div>
+    </div>
+  </div>
+
+  <!-- DAYPART CHART -->
+  <div class="card">
+    <h3 class="text-sm font-bold mb-4">Sales by Hour</h3>
+    <canvas id="chart-daypart" height="180"></canvas>
+  </div>
+
+  <!-- CHANNEL MIX -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div class="card">
+      <h3 class="text-sm font-bold mb-4">Channel Mix</h3>
+      <canvas id="chart-channel" height="160"></canvas>
+    </div>
+    <div class="card">
+      <h3 class="text-sm font-bold mb-4">Payment Methods</h3>
+      <canvas id="chart-payment" height="160"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB: WEEK -->
+<!-- ═══════════════════════════════════════ -->
+<div id="content-week" class="space-y-6 hidden">
+  <h2 class="text-xl font-bold">Weekly Performance</h2>
+
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+    <div class="card">
+      <div class="kpi-label">Week Net Sales</div>
+      <div class="kpi-value" id="week-sales">$—</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">Week Transactions</div>
+      <div class="kpi-value" id="week-txns">—</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">Week Avg Check</div>
+      <div class="kpi-value" id="week-check">$—</div>
+    </div>
+    <div class="card">
+      <div class="kpi-label">Week Leakage</div>
+      <div class="kpi-value" id="week-leakage">$—</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 class="text-sm font-bold mb-4">Daily Sales (7 Days)</h3>
+    <canvas id="chart-week" height="200"></canvas>
+  </div>
+
+  <div class="card">
+    <h3 class="text-sm font-bold mb-4">Day-by-Day Breakdown</h3>
+    <div id="week-table"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB: LEAKAGE -->
+<!-- ═══════════════════════════════════════ -->
+<div id="content-leakage" class="space-y-6 hidden">
+  <div class="flex items-center justify-between">
+    <h2 class="text-xl font-bold">Weekly Leakage Review</h2>
+    <span class="text-xs text-slate-400">Every Monday, 15 min</span>
+  </div>
+
+  <!-- This week summary -->
+  <div class="card" id="leakage-summary">
+    <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div>
+        <div class="kpi-label">Voids</div>
+        <div class="kpi-value" id="lk-voids">$—</div>
+      </div>
+      <div>
+        <div class="kpi-label">Refunds</div>
+        <div class="kpi-value" id="lk-refunds">$—</div>
+      </div>
+      <div>
+        <div class="kpi-label">Discounts</div>
+        <div class="kpi-value" id="lk-discounts">$—</div>
+      </div>
+      <div>
+        <div class="kpi-label">Comps</div>
+        <div class="kpi-value" id="lk-comps">$—</div>
+      </div>
+      <div>
+        <div class="kpi-label">TOTAL</div>
+        <div class="kpi-value" id="lk-total">$—</div>
+      </div>
+    </div>
+    <div class="mt-4 p-3 rounded-lg" id="lk-status">
+      <span class="text-sm">Enter data to see status</span>
+    </div>
+  </div>
+
+  <!-- Leakage trend chart -->
+  <div class="card">
+    <h3 class="text-sm font-bold mb-4">Leakage Trend (8 Weeks)</h3>
+    <canvas id="chart-leakage" height="180"></canvas>
+  </div>
+
+  <!-- Leakage log table -->
+  <div class="card">
+    <h3 class="text-sm font-bold mb-4">Weekly Leakage Log</h3>
+    <div id="leakage-log"></div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB: FRIDAY SCOREBOARD -->
+<!-- ═══════════════════════════════════════ -->
+<div id="content-scoreboard" class="space-y-6 hidden">
+  <h2 class="text-xl font-bold">🏆 Friday Scoreboard</h2>
+  <p class="text-sm text-slate-400">Print every Friday. Fill in during service. Review at close.</p>
+
+  <div class="card border-2 border-blue-500/30">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="space-y-4">
+        <div class="border-b border-slate-700 pb-2">
+          <label>Week of:</label>
+          <input type="text" id="sb-week" placeholder="Aug 1-7, 2026">
+        </div>
+
+        <div>
+          <label>Friday Net Sales</label>
+          <input type="number" id="sb-fri-sales" placeholder="$4,613" oninput="updateScoreboard()">
+        </div>
+        <div>
+          <label>Friday Transactions</label>
+          <input type="number" id="sb-fri-txns" placeholder="214" oninput="updateScoreboard()">
+        </div>
+        <div>
+          <label>Friday Food Cost %</label>
+          <input type="number" step="0.1" id="sb-fri-fc" placeholder="28.5" oninput="updateScoreboard()">
+        </div>
+        <div>
+          <label>Friday Labor %</label>
+          <input type="number" step="0.1" id="sb-fri-labor" placeholder="25.0" oninput="updateScoreboard()">
+        </div>
+      </div>
+
+      <div class="space-y-4">
+        <div>
+          <label>Friday Voids $</label>
+          <input type="number" id="sb-fri-voids" placeholder="120" oninput="updateScoreboard()">
+        </div>
+        <div>
+          <label>Friday Discounts $</label>
+          <input type="number" id="sb-fri-disc" placeholder="80" oninput="updateScoreboard()">
+        </div>
+        <div>
+          <label>Peak Serve Time (sec) — time 10 orders</label>
+          <input type="number" id="sb-fri-ticket" placeholder="240" oninput="updateScoreboard()">
+        </div>
+        <div>
+          <label>Walk-Aways (tally count)</label>
+          <input type="number" id="sb-fri-walk" placeholder="3" oninput="updateScoreboard()">
+        </div>
+        <div>
+          <label>Top 3 Issues Today</label>
+          <textarea id="sb-issues" rows="3" placeholder="1. Fryer backed up at 18:30&#10;2. Cashier alone during rush&#10;3. No readback on 3 orders" style="background:#0f172a;border:1px solid var(--border);border-radius:8px;padding:0.5rem;width:100%;color:var(--text);font-size:0.875rem;"></textarea>
+        </div>
+      </div>
+    </div>
+
+    <!-- Auto-calculated scorecard -->
+    <div class="mt-6 pt-6 border-t border-slate-700">
+      <h4 class="text-sm font-bold mb-3">Scorecard</h4>
+      <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="sb-results">
+        <!-- Filled by JS -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Historical Fridays -->
+  <div class="card">
+    <h3 class="text-sm font-bold mb-4">Friday History</h3>
+    <canvas id="chart-friday" height="180"></canvas>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB: ENTER DATA -->
+<!-- ═══════════════════════════════════════ -->
+<div id="content-enter" class="space-y-6 hidden">
+  <h2 class="text-xl font-bold">✏️ Enter Daily Data</h2>
+  <p class="text-sm text-slate-400">Enter end-of-day numbers from Lightspeed Z-report. Takes 2 minutes.</p>
+
+  <div class="card max-w-xl space-y-4">
+    <div>
+      <label>Date</label>
+      <input type="date" id="entry-date">
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label>Net Sales ($)</label>
+        <input type="number" step="0.01" id="entry-sales" placeholder="3250.00">
+      </div>
+      <div>
+        <label>Transactions</label>
+        <input type="number" id="entry-txns" placeholder="156">
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label>Voids ($)</label>
+        <input type="number" step="0.01" id="entry-voids" placeholder="45.00">
+      </div>
+      <div>
+        <label>Discounts ($)</label>
+        <input type="number" step="0.01" id="entry-discounts" placeholder="30.00">
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label>Refunds ($)</label>
+        <input type="number" step="0.01" id="entry-refunds" placeholder="0.00">
+      </div>
+      <div>
+        <label>Comps ($)</label>
+        <input type="number" step="0.01" id="entry-comps" placeholder="0.00">
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label>Food Purchases ($)</label>
+        <input type="number" step="0.01" id="entry-food" placeholder="975.00">
+      </div>
+      <div>
+        <label>Labor Cost ($)</label>
+        <input type="number" step="0.01" id="entry-labor" placeholder="877.50">
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label>Walk-Aways (count)</label>
+        <input type="number" id="entry-walkaways" placeholder="2">
+      </div>
+      <div>
+        <label>Avg Ticket Time (sec) — optional</label>
+        <input type="number" id="entry-ticket" placeholder="75">
+      </div>
+    </div>
+
+    <hr class="border-slate-700">
+
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label>Dine-in Sales ($)</label>
+        <input type="number" step="0.01" id="entry-dinein" placeholder="2950.00">
+      </div>
+      <div>
+        <label>Delivery Sales ($)</label>
+        <input type="number" step="0.01" id="entry-delivery" placeholder="300.00">
+      </div>
+    </div>
+
+    <div class="grid grid-cols-3 gap-4">
+      <div>
+        <label>Cash ($)</label>
+        <input type="number" step="0.01" id="entry-cash" placeholder="740.00">
+      </div>
+      <div>
+        <label>Card ($)</label>
+        <input type="number" step="0.01" id="entry-card" placeholder="2260.00">
+      </div>
+      <div>
+        <label>Online ($)</label>
+        <input type="number" step="0.01" id="entry-online" placeholder="250.00">
+      </div>
+    </div>
+
+    <div class="flex gap-3 pt-2">
+      <button onclick="saveEntry()" class="btn btn-primary flex-1">💾 Save Entry</button>
+      <button onclick="loadDemoData()" class="btn btn-secondary">Load Demo</button>
+    </div>
+  </div>
+
+  <!-- Quick Friday scoreboard entry -->
+  <div class="card max-w-xl">
+    <h3 class="text-sm font-bold mb-3">Quick Friday Scoreboard</h3>
+    <p class="text-xs text-slate-400 mb-3">Jump to Friday tab for full scoreboard entry</p>
+    <button onclick="switchTab('scoreboard')" class="btn btn-secondary w-full">→ Go to Friday Scoreboard</button>
+  </div>
+</div>
+
+</main>
+
+<footer class="text-center py-6 text-xs text-slate-500">
+  Bellepros Laval 440 · Ops Dashboard v1.0 · Data stored locally in browser
+</footer>
+
+<script>
+// ═══════════════════════════════════════════
+// DATA LAYER — localStorage persistence
+// ═══════════════════════════════════════════
+
+const STORE_KEY = 'bellepros_ops_data';
+
+function loadData() {
+  try {
+    return JSON.parse(localStorage.getItem(STORE_KEY)) || { entries: {}, scoreboards: {} };
+  } catch { return { entries: {}, scoreboards: {} }; }
+}
+
+function saveData(data) {
+  localStorage.setItem(STORE_KEY, JSON.stringify(data));
+}
+
+function todayStr() {
+  return new Date().toISOString().split('T')[0];
+}
+
+// ═══════════════════════════════════════════
+// TAB SWITCHING
+// ═══════════════════════════════════════════
+
+const tabs = ['today', 'week', 'leakage', 'scoreboard', 'enter'];
+
+function switchTab(name) {
+  tabs.forEach(t => {
+    document.getElementById('content-' + t).classList.add('hidden');
+    document.getElementById('tab-' + t).classList.remove('tab-active');
+    document.getElementById('tab-' + t).classList.add('tab-inactive');
+  });
+  document.getElementById('content-' + name).classList.remove('hidden');
+  document.getElementById('tab-' + name).classList.add('tab-active');
+  document.getElementById('tab-' + name).classList.remove('tab-inactive');
+
+  if (name === 'today') renderToday();
+  if (name === 'week') renderWeek();
+  if (name === 'leakage') renderLeakage();
+  if (name === 'scoreboard') renderScoreboard();
+}
+
+// ═══════════════════════════════════════════
+// STATUS HELPERS
+// ═══════════════════════════════════════════
+
+function getStatusClass(value, greenBelow, yellowBelow) {
+  if (value <= greenBelow) return 'status-green';
+  if (value <= yellowBelow) return 'status-yellow';
+  return 'status-red';
+}
+
+function getCardStatus(value, greenBelow, yellowBelow) {
+  if (value <= greenBelow) return 'bg-green';
+  if (value <= yellowBelow) return 'bg-yellow';
+  return 'bg-red';
+}
+
+function fmt(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  if (Math.abs(n) >= 1000) return '$' + n.toLocaleString('en-CA', {maximumFractionDigits: 0});
+  return '$' + n.toFixed(2);
+}
+
+function fmtPct(n) {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return n.toFixed(1) + '%';
+}
+
+// ═══════════════════════════════════════════
+// ENTER DATA — Save
+// ═══════════════════════════════════════════
+
+function saveEntry() {
+  const data = loadData();
+  const date = document.getElementById('entry-date').value;
+  if (!date) { alert('Select a date'); return; }
+
+  const entry = {
+    sales: parseFloat(document.getElementById('entry-sales').value) || 0,
+    txns: parseInt(document.getElementById('entry-txns').value) || 0,
+    voids: parseFloat(document.getElementById('entry-voids').value) || 0,
+    discounts: parseFloat(document.getElementById('entry-discounts').value) || 0,
+    refunds: parseFloat(document.getElementById('entry-refunds').value) || 0,
+    comps: parseFloat(document.getElementById('entry-comps').value) || 0,
+    food: parseFloat(document.getElementById('entry-food').value) || 0,
+    labor: parseFloat(document.getElementById('entry-labor').value) || 0,
+    walkaways: parseInt(document.getElementById('entry-walkaways').value) || 0,
+    ticket: parseInt(document.getElementById('entry-ticket').value) || null,
+    dinein: parseFloat(document.getElementById('entry-dinein').value) || 0,
+    delivery: parseFloat(document.getElementById('entry-delivery').value) || 0,
+    cash: parseFloat(document.getElementById('entry-cash').value) || 0,
+    card: parseFloat(document.getElementById('entry-card').value) || 0,
+    online: parseFloat(document.getElementById('entry-online').value) || 0,
+    entered: new Date().toISOString()
+  };
+
+  data.entries[date] = entry;
+  saveData(data);
+
+  // Clear form
+  ['entry-sales','entry-txns','entry-voids','entry-discounts','entry-refunds','entry-comps',
+   'entry-food','entry-labor','entry-walkaways','entry-ticket','entry-dinein','entry-delivery',
+   'entry-cash','entry-card','entry-online'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+
+  alert('✅ Saved for ' + date);
+  switchTab('today');
+  document.getElementById('todayDate').value = date;
+  renderToday();
+}
+
+// ═══════════════════════════════════════════
+// RENDER: TODAY
+// ═══════════════════════════════════════════
+
+let daypartChart, channelChart, paymentChart;
+
+function renderToday() {
+  const data = loadData();
+  const date = document.getElementById('todayDate').value || todayStr();
+  const entry = data.entries[date];
+
+  if (!entry) {
+    document.getElementById('val-sales').textContent = '$—';
+    document.getElementById('val-txns').textContent = '—';
+    document.getElementById('val-check').textContent = '$—';
+    document.getElementById('val-walkaways').textContent = '—';
+    document.getElementById('val-foodcost').textContent = '—%';
+    document.getElementById('val-labor').textContent = '—%';
+    document.getElementById('val-voids').textContent = '$—';
+    document.getElementById('val-ticket').textContent = '—s';
+    document.getElementById('lastUpdate').textContent = 'No data for ' + date;
+    return;
+  }
+
+  const check = entry.txns > 0 ? entry.sales / entry.txns : 0;
+  const foodPct = entry.sales > 0 ? (entry.food / entry.sales * 100) : 0;
+  const laborPct = entry.sales > 0 ? (entry.labor / entry.sales * 100) : 0;
+
+  document.getElementById('val-sales').textContent = fmt(entry.sales);
+  document.getElementById('val-txns').textContent = entry.txns.toLocaleString();
+  document.getElementById('val-check').textContent = '$' + check.toFixed(2);
+  document.getElementById('val-walkaways').textContent = entry.walkaways;
+  document.getElementById('val-foodcost').textContent = fmtPct(foodPct);
+  document.getElementById('val-labor').textContent = fmtPct(laborPct);
+  document.getElementById('val-voids').textContent = '$' + entry.voids.toFixed(0);
+  document.getElementById('val-ticket').textContent = entry.ticket ? entry.ticket + 's' : '—';
+
+  // Color-code
+  document.getElementById('kpi-sales').className = 'card ' + getCardStatus(entry.sales < 2000 ? 9999 : 0, entry.sales < 2500 ? 0 : 9999, entry.sales < 2000 ? 9999 : 0);
+  document.getElementById('kpi-walkaways').className = 'card ' + getCardStatus(entry.walkaways, 2, 5);
+
+  // Channel mix chart
+  const channelCtx = document.getElementById('chart-channel');
+  if (channelChart) channelChart.destroy();
+  channelChart = new Chart(channelCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Dine-in', 'Delivery', 'Other'],
+      datasets: [{
+        data: [entry.dinein || entry.sales * 0.91, entry.delivery || entry.sales * 0.09, Math.max(0, entry.sales - (entry.dinein || 0) - (entry.delivery || 0))],
+        backgroundColor: ['#3b82f6', '#a855f7', '#64748b'],
+        borderWidth: 0
+      }]
+    },
+    options: { plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } } } }
+  });
+
+  // Payment chart
+  const payCtx = document.getElementById('chart-payment');
+  if (paymentChart) paymentChart.destroy();
+  paymentChart = new Chart(payCtx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Card', 'Cash', 'Online'],
+      datasets: [{
+        data: [entry.card || entry.sales * 0.686, entry.cash || entry.sales * 0.228, entry.online || entry.sales * 0.086],
+        backgroundColor: ['#22c55e', '#eab308', '#3b82f6'],
+        borderWidth: 0
+      }]
+    },
+    options: { plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } } } }
+  });
+
+  // Daypart chart (benchmark from POS data)
+  const dpCtx = document.getElementById('chart-daypart');
+  if (daypartChart) daypartChart.destroy();
+  daypartChart = new Chart(dpCtx, {
+    type: 'bar',
+    data: {
+      labels: ['10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20', '21'],
+      datasets: [{
+        label: '% of Daily Sales (benchmark)',
+        data: [1.2, 10.5, 19.9, 11.9, 7.4, 5.6, 7.4, 13.1, 13.7, 6.9, 2.0, 0.4],
+        backgroundColor: function(ctx) {
+          const v = ctx.parsed.y;
+          if (v >= 10) return '#ef4444';
+          if (v >= 5) return '#eab308';
+          return '#22c55e';
+        },
+        borderRadius: 4
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { ticks: { color: '#94a3b8', callback: v => v + '%' }, grid: { color: '#1e293b' } },
+        x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
+      }
+    }
+  });
+
+  document.getElementById('lastUpdate').textContent = 'Updated ' + new Date(entry.entered).toLocaleString('en-CA', { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
+}
+
+// ═══════════════════════════════════════════
+// RENDER: WEEK
+// ═══════════════════════════════════════════
+
+let weekChart;
+
+function renderWeek() {
+  const data = loadData();
+  const dates = Object.keys(data.entries).sort();
+  const recent = dates.slice(-7);
+
+  let totalSales = 0, totalTxns = 0, totalLeakage = 0;
+  const dailyData = [];
+
+  recent.forEach(date => {
+    const e = data.entries[date];
+    totalSales += e.sales;
+    totalTxns += e.txns;
+    totalLeakage += e.voids + e.discounts + e.refunds + e.comps;
+    const dayName = new Date(date).toLocaleDateString('en-CA', { weekday: 'short' });
+    dailyData.push({ date, day: dayName, sales: e.sales, txns: e.txns, check: e.txns > 0 ? e.sales/e.txns : 0, leakage: e.voids + e.discounts + e.refunds + e.comps });
+  });
+
+  document.getElementById('week-sales').textContent = fmt(totalSales);
+  document.getElementById('week-txns').textContent = totalTxns.toLocaleString();
+  document.getElementById('week-check').textContent = '$' + (totalTxns > 0 ? (totalSales/totalTxns).toFixed(2) : '—');
+  document.getElementById('week-leakage').textContent = fmt(totalLeakage);
+
+  // Weekly chart
+  const ctx = document.getElementById('chart-week');
+  if (weekChart) weekChart.destroy();
+  weekChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: dailyData.map(d => d.day),
+      datasets: [{
+        label: 'Net Sales',
+        data: dailyData.map(d => d.sales),
+        backgroundColor: '#3b82f6',
+        borderRadius: 4
+      }]
+    },
+    options: {
+      plugins: { legend: { display: false } },
+      scales: {
+        y: { ticks: { color: '#94a3b8', callback: v => '$' + (v/1000).toFixed(1) + 'k' }, grid: { color: '#1e293b' } },
+        x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
+      }
+    }
+  });
+
+  // Table
+  const tbl = document.getElementById('week-table');
+  let html = '<div class="grid grid-cols-5 gap-2 text-xs font-bold text-slate-400 pb-2 border-b border-slate-700">';
+  html += '<div>Day</div><div>Sales</div><div>Txns</div><div>Check</div><div>Leakage</div></div>';
+  dailyData.forEach(d => {
+    html += `<div class="grid grid-cols-5 gap-2 text-sm py-2 table-row">`;
+    html += `<div>${d.day}</div>`;
+    html += `<div>${fmt(d.sales)}</div>`;
+    html += `<div>${d.txns}</div>`;
+    html += `<div>$${d.check.toFixed(0)}</div>`;
+    html += `<div class="${d.leakage > 100 ? 'status-red' : d.leakage > 50 ? 'status-yellow' : 'status-green'}">${fmt(d.leakage)}</div>`;
+    html += `</div>`;
+  });
+  tbl.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════
+// RENDER: LEAKAGE
+// ═══════════════════════════════════════════
+
+let leakageChart;
+
+function renderLeakage() {
+  const data = loadData();
+  const dates = Object.keys(data.entries).sort();
+  const recent = dates.slice(-8);
+
+  // Group by week
+  const weeks = {};
+  recent.forEach(date => {
+    const e = data.entries[date];
+    const d = new Date(date);
+    const weekStart = new Date(d);
+    weekStart.setDate(d.getDate() - d.getDay());
+    const wk = weekStart.toISOString().split('T')[0];
+    if (!weeks[wk]) weeks[wk] = { voids: 0, refunds: 0, discounts: 0, comps: 0, total: 0, count: 0 };
+    weeks[wk].voids += e.voids;
+    weeks[wk].refunds += e.refunds;
+    weeks[wk].discounts += e.discounts;
+    weeks[wk].comps += e.comps;
+    weeks[wk].total += e.voids + e.discounts + e.refunds + e.comps;
+    weeks[wk].count++;
+  });
+
+  const weekKeys = Object.keys(weeks).sort();
+  const lastWeek = weekKeys[weekKeys.length - 1];
+  const lw = weeks[lastWeek] || { voids: 0, refunds: 0, discounts: 0, comps: 0, total: 0 };
+
+  document.getElementById('lk-voids').textContent = '$' + lw.voids.toFixed(0);
+  document.getElementById('lk-refunds').textContent = '$' + lw.refunds.toFixed(0);
+  document.getElementById('lk-discounts').textContent = '$' + lw.discounts.toFixed(0);
+  document.getElementById('lk-comps').textContent = '$' + lw.comps.toFixed(0);
+  document.getElementById('lk-total').textContent = '$' + lw.total.toFixed(0);
+
+  // Status
+  const statusEl = document.getElementById('lk-status');
+  if (lw.total < 650) {
+    statusEl.className = 'mt-4 p-3 rounded-lg bg-green';
+    statusEl.innerHTML = `<span class="text-sm font-medium status-green">✅ GREEN — Leakage under control ($${lw.total.toFixed(0)} < $650 target)</span>`;
+  } else if (lw.total < 1000) {
+    statusEl.className = 'mt-4 p-3 rounded-lg bg-yellow';
+    statusEl.innerHTML = `<span class="text-sm font-medium status-yellow">🟡 YELLOW — Investigate causes ($${lw.total.toFixed(0)} > $650 target)</span>`;
+  } else {
+    statusEl.className = 'mt-4 p-3 rounded-lg bg-red';
+    statusEl.innerHTML = `<span class="text-sm font-medium status-red">🔴 RED — Owner must review ($${lw.total.toFixed(0)} > $1,000 threshold)</span>`;
+  }
+
+  // Chart
+  const ctx = document.getElementById('chart-leakage');
+  if (leakageChart) leakageChart.destroy();
+  leakageChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: weekKeys.map(wk => new Date(wk).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })),
+      datasets: [
+        { label: 'Voids', data: weekKeys.map(wk => weeks[wk].voids), borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true },
+        { label: 'Discounts', data: weekKeys.map(wk => weeks[wk].discounts), borderColor: '#eab308', backgroundColor: 'rgba(234,179,8,0.1)', fill: true },
+        { label: 'Total', data: weekKeys.map(wk => weeks[wk].total), borderColor: '#3b82f6', backgroundColor: 'transparent', borderDash: [5,5], borderWidth: 2 }
+      ]
+    },
+    options: {
+      plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } } },
+      scales: {
+        y: { ticks: { color: '#94a3b8', callback: v => '$' + v }, grid: { color: '#1e293b' } },
+        x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
+      }
+    }
+  });
+
+  // Log table
+  const logEl = document.getElementById('leakage-log');
+  let html = '<div class="grid grid-cols-6 gap-2 text-xs font-bold text-slate-400 pb-2 border-b border-slate-700">';
+  html += '<div>Week</div><div>Voids</div><div>Refunds</div><div>Discounts</div><div>Comps</div><div>TOTAL</div></div>';
+  weekKeys.forEach(wk => {
+    const w = weeks[wk];
+    const cls = w.total < 650 ? 'status-green' : w.total < 1000 ? 'status-yellow' : 'status-red';
+    html += `<div class="grid grid-cols-6 gap-2 text-sm py-2 table-row">`;
+    html += `<div class="text-xs">${new Date(wk).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })}</div>`;
+    html += `<div>$${w.voids.toFixed(0)}</div>`;
+    html += `<div>$${w.refunds.toFixed(0)}</div>`;
+    html += `<div>$${w.discounts.toFixed(0)}</div>`;
+    html += `<div>$${w.comps.toFixed(0)}</div>`;
+    html += `<div class="${cls} font-bold">$${w.total.toFixed(0)}</div>`;
+    html += `</div>`;
+  });
+  logEl.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════
+// RENDER: FRIDAY SCOREBOARD
+// ═══════════════════════════════════════════
+
+let fridayChart;
+
+function renderScoreboard() {
+  const data = loadData();
+  const dates = Object.keys(data.entries).sort();
+  const fridays = dates.filter(d => new Date(d).getDay() === 5).slice(-8);
+
+  const friData = fridays.map(d => {
+    const e = data.entries[d];
+    return {
+      date: d,
+      sales: e.sales,
+      txns: e.txns,
+      voids: e.voids + e.discounts + e.refunds + e.comps
+    };
+  });
+
+  const ctx = document.getElementById('chart-friday');
+  if (fridayChart) fridayChart.destroy();
+  fridayChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: friData.map(f => new Date(f.date).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' })),
+      datasets: [
+        { label: 'Friday Sales', data: friData.map(f => f.sales), backgroundColor: '#3b82f6', borderRadius: 4 },
+        { type: 'line', label: 'Friday Voids+Disc', data: friData.map(f => f.voids), borderColor: '#ef4444', backgroundColor: 'transparent', yAxisID: 'y1' }
+      ]
+    },
+    options: {
+      plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', font: { size: 11 } } } },
+      scales: {
+        y: { position: 'left', ticks: { color: '#94a3b8', callback: v => '$' + (v/1000).toFixed(1) + 'k' }, grid: { color: '#1e293b' } },
+        y1: { position: 'right', ticks: { color: '#ef4444', callback: v => '$' + v }, grid: { display: false } },
+        x: { ticks: { color: '#94a3b8' }, grid: { display: false } }
+      }
+    }
+  });
+
+  updateScoreboard();
+}
+
+function updateScoreboard() {
+  const sales = parseFloat(document.getElementById('sb-fri-sales').value) || 0;
+  const txns = parseInt(document.getElementById('sb-fri-txns').value) || 0;
+  const fc = parseFloat(document.getElementById('sb-fri-fc').value) || 0;
+  const labor = parseFloat(document.getElementById('sb-fri-labor').value) || 0;
+  const voids = parseFloat(document.getElementById('sb-fri-voids').value) || 0;
+  const disc = parseFloat(document.getElementById('sb-fri-disc').value) || 0;
+  const ticket = parseInt(document.getElementById('sb-fri-ticket').value) || 0;
+  const walk = parseInt(document.getElementById('sb-fri-walk').value) || 0;
+
+  const check = txns > 0 ? sales / txns : 0;
+  const totalLeakage = voids + disc;
+
+  const metrics = [
+    { label: 'Friday Sales', value: fmt(sales), target: '$4,000+', status: sales >= 4000 ? 'green' : sales >= 3000 ? 'yellow' : 'red' },
+    { label: 'Transactions', value: txns, target: '180+', status: txns >= 180 ? 'green' : txns >= 140 ? 'yellow' : 'red' },
+    { label: 'Avg Check', value: '$' + check.toFixed(2), target: '$20+', status: check >= 20 ? 'green' : check >= 15 ? 'yellow' : 'red' },
+    { label: 'Food Cost %', value: fc ? fc.toFixed(1) + '%' : '—', target: '≤31%', status: fc <= 31 ? 'green' : fc <= 33 ? 'yellow' : 'red' },
+    { label: 'Labor %', value: labor ? labor.toFixed(1) + '%' : '—', target: '≤27%', status: labor <= 27 ? 'green' : labor <= 30 ? 'yellow' : 'red' },
+    { label: 'Voids + Disc', value: '$' + totalLeakage.toFixed(0), target: '<$200', status: totalLeakage <= 200 ? 'green' : totalLeakage <= 400 ? 'yellow' : 'red' },
+    { label: 'Serve Time', value: ticket ? ticket + 's' : '—', target: '<240s', status: ticket <= 240 ? 'green' : ticket <= 300 ? 'yellow' : 'red' },
+    { label: 'Walk-Aways', value: walk, target: '<3', status: walk <= 2 ? 'green' : walk <= 5 ? 'yellow' : 'red' }
+  ];
+
+  const container = document.getElementById('sb-results');
+  container.innerHTML = metrics.map(m => {
+    const bg = m.status === 'green' ? 'bg-green' : m.status === 'yellow' ? 'bg-yellow' : 'bg-red';
+    const color = m.status === 'green' ? 'status-green' : m.status === 'yellow' ? 'status-yellow' : 'status-red';
+    return `
+      <div class="card ${bg}" style="padding:0.75rem">
+        <div class="kpi-label">${m.label}</div>
+        <div class="text-xl font-bold ${color}">${m.value}</div>
+        <div class="text-xs text-slate-400">${m.target}</div>
+      </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════
+// DEMO DATA — Based on actual H1 2026 averages
+// ═══════════════════════════════════════════
+
+function loadDemoData() {
+  const data = loadData();
+  const today = new Date();
+  const dayOfWeek = today.getDay();
+
+  const dowFactors = { 0: 0.80, 1: 0.71, 2: 0.72, 3: 0.81, 4: 0.95, 5: 1.44, 6: 1.06 };
+  const factor = dowFactors[dayOfWeek] || 1.0;
+  const baseDaily = 2975 * factor; // ~$1,076K / 362 days
+
+  const sales = Math.round(baseDaily);
+  const txns = Math.round(143 * factor);
+  const check = sales / txns;
+
+  document.getElementById('entry-date').value = todayStr();
+  document.getElementById('entry-sales').value = sales;
+  document.getElementById('entry-txns').value = txns;
+  document.getElementById('entry-voids').value = Math.round(sales * 0.019); // ~1.9% benchmark
+  document.getElementById('entry-discounts').value = Math.round(sales * 0.016); // ~1.6% benchmark
+  document.getElementById('entry-refunds').value = Math.round(sales * 0.004);
+  document.getElementById('entry-comps').value = 0;
+  document.getElementById('entry-food').value = Math.round(sales * 0.268); // Laval actual
+  document.getElementById('entry-labor').value = Math.round(sales * 0.27);
+  document.getElementById('entry-walkaways').value = dayOfWeek === 5 ? 3 : 1;
+  document.getElementById('entry-ticket').value = 210; // ~3.5 min (industry avg for full-service)
+  document.getElementById('entry-dinein').value = Math.round(sales * 0.914);
+  document.getElementById('entry-delivery').value = Math.round(sales * 0.086);
+  document.getElementById('entry-cash').value = Math.round(sales * 0.228);
+  document.getElementById('entry-card').value = Math.round(sales * 0.686);
+  document.getElementById('entry-online').value = Math.round(sales * 0.086);
+}
+
+// Load 7 days of demo history
+function loadDemoHistory() {
+  const data = loadData();
+  if (Object.keys(data.entries).length > 0) return; // Don't overwrite real data
+
+  const dowFactors = { 0: 0.80, 1: 0.71, 2: 0.72, 3: 0.81, 4: 0.95, 5: 1.44, 6: 1.06 };
+  for (let i = 7; i >= 1; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().split('T')[0];
+    const factor = dowFactors[d.getDay()] || 1.0;
+    const sales = Math.round(2975 * factor);
+    const txns = Math.round(143 * factor);
+
+    data.entries[dateStr] = {
+      sales, txns,
+      voids: Math.round(sales * (0.015 + Math.random() * 0.015)),
+      discounts: Math.round(sales * (0.010 + Math.random() * 0.015)),
+      refunds: Math.round(sales * 0.004),
+      comps: 0,
+      food: Math.round(sales * (0.26 + Math.random() * 0.03)),
+      labor: Math.round(sales * (0.25 + Math.random() * 0.04)),
+      walkaways: d.getDay() === 5 ? Math.floor(Math.random() * 5) + 1 : Math.floor(Math.random() * 2),
+      ticket: null,
+      dinein: Math.round(sales * 0.914),
+      delivery: Math.round(sales * 0.086),
+      cash: Math.round(sales * 0.228),
+      card: Math.round(sales * 0.686),
+      online: Math.round(sales * 0.086),
+      entered: d.toISOString()
+    };
+  }
+  saveData(data);
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+
+document.getElementById('todayDate').value = todayStr();
+document.getElementById('entry-date').value = todayStr();
+loadDemoHistory();
+renderToday();
+</script>
+
+</body>
+</html>
