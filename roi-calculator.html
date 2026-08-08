@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bellepros Express — Franchisee ROI Calculator</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --card: #151b2e;
+    --border: #1e2540;
+    --text: #e8eaed;
+    --muted: #8b92a8;
+    --accent: #e8b339;
+    --green: #4ade80;
+    --red: #f87171;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', -apple-system, sans-serif; margin: 0; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; }
+  label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); display: block; margin-bottom: 0.375rem; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); height: 6px; }
+  input[type="number"] { background: #0a0e1a; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem 0.75rem; color: var(--text); width: 100%; font-size: 1rem; }
+  .value-display { font-size: 1.1rem; font-weight: 700; color: var(--accent); }
+  .kpi-big { font-size: 2.5rem; font-weight: 900; line-height: 1; }
+  .kpi-label { font-size: 0.75rem; text-transform: uppercase; color: var(--muted); margin-bottom: 0.25rem; }
+  .divider { width: 60px; height: 4px; background: var(--accent); border-radius: 2px; margin: 1rem 0 1.5rem; }
+  .tab-active { background: var(--accent); color: #0a0e1a; }
+  .tab-inactive { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  .result-good { color: var(--green); }
+  .result-warn { color: var(--accent); }
+  .result-bad { color: var(--red); }
+  .gauge-bar { height: 8px; border-radius: 4px; background: var(--border); overflow: hidden; margin-top: 0.5rem; }
+  .gauge-fill { height: 100%; border-radius: 4px; transition: width 0.3s ease; }
+</style>
+</head>
+<body>
+
+<header class="px-6 py-4 border-b border-slate-800 flex items-center justify-between sticky top-0 z-50 bg-[#0a0e1a]/95 backdrop-blur">
+  <div class="flex items-center gap-3">
+    <span class="text-2xl">🍔</span>
+    <div>
+      <h1 class="text-lg font-bold">Bellepros Express — ROI Calculator</h1>
+      <p class="text-xs text-slate-400">Adjust the sliders to see your projected returns</p>
+    </div>
+  </div>
+  <button onclick="resetDefaults()" class="text-xs px-3 py-1.5 rounded-lg border border-slate-700 hover:border-slate-500">Reset</button>
+</header>
+
+<main class="max-w-5xl mx-auto px-4 py-6">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    <!-- LEFT: INPUTS -->
+    <div class="space-y-4">
+
+      <!-- Prototype selector -->
+      <div class="card">
+        <label class="mb-2">Prototype Type</label>
+        <div class="grid grid-cols-2 gap-2">
+          <button onclick="setPrototype('inline')" id="btn-inline" class="py-2 rounded-lg text-sm font-bold tab-active">In-Line Express ($400K)</button>
+          <button onclick="setPrototype('drivethru')" id="btn-drivethru" class="py-2 rounded-lg text-sm font-bold tab-inactive">Drive-Thru ($550K)</button>
+        </div>
+      </div>
+
+      <!-- CAPEX -->
+      <div class="card">
+        <div class="flex justify-between items-baseline mb-2">
+          <label>Total Investment (CAPEX)</label>
+          <span class="value-display" id="show-capex">$400,000</span>
+        </div>
+        <input type="range" id="capex" min="300000" max="650000" step="5000" value="400000" oninput="calc()">
+        <div class="flex justify-between text-xs text-slate-500 mt-1"><span>$300K</span><span>$650K</span></div>
+      </div>
+
+      <!-- AUV -->
+      <div class="card">
+        <div class="flex justify-between items-baseline mb-2">
+          <label>Average Unit Volume (Annual Revenue)</label>
+          <span class="value-display" id="show-auv">$750,000</span>
+        </div>
+        <input type="range" id="auv" min="500000" max="1200000" step="10000" value="750000" oninput="calc()">
+        <div class="flex justify-between text-xs text-slate-500 mt-1"><span>$500K</span><span>$1.2M</span></div>
+      </div>
+
+      <!-- Food Cost % -->
+      <div class="card">
+        <div class="flex justify-between items-baseline mb-2">
+          <label>Food + Paper Cost %</label>
+          <span class="value-display" id="show-foodpct">30.0%</span>
+        </div>
+        <input type="range" id="foodpct" min="26" max="36" step="0.5" value="30" oninput="calc()">
+        <div class="flex justify-between text-xs text-slate-500 mt-1"><span>26% (best)</span><span>36% (worst)</span></div>
+      </div>
+
+      <!-- Labor % -->
+      <div class="card">
+        <div class="flex justify-between items-baseline mb-2">
+          <label>Labor Cost % (fully loaded)</label>
+          <span class="value-display" id="show-laborpct">27.0%</span>
+        </div>
+        <input type="range" id="laborpct" min="22" max="33" step="0.5" value="27" oninput="calc()">
+        <div class="flex justify-between text-xs text-slate-500 mt-1"><span>22% (best)</span><span>33% (worst)</span></div>
+      </div>
+
+      <!-- Rent -->
+      <div class="card">
+        <div class="flex justify-between items-baseline mb-2">
+          <label>Monthly Rent (incl. CAM/taxes)</label>
+          <span class="value-display" id="show-rent">$1,500/mo</span>
+        </div>
+        <input type="range" id="rent" min="800" max="6000" step="50" value="1500" oninput="calc()">
+        <div class="flex justify-between text-xs text-slate-500 mt-1"><span>$800 (QC secondary)</span><span>$6,000 (GTA prime)</span></div>
+      </div>
+
+      <!-- Loan amount -->
+      <div class="card">
+        <div class="flex justify-between items-baseline mb-2">
+          <label>Equipment Loan Amount (BDC/bank)</label>
+          <span class="value-display" id="show-loan">$200,000</span>
+        </div>
+        <input type="range" id="loan" min="0" max="400000" step="10000" value="200000" oninput="calc()">
+        <div class="flex justify-between text-xs text-slate-500 mt-1"><span>$0 (cash)</span><span>$400K</span></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: RESULTS -->
+    <div class="space-y-4">
+
+      <!-- EBITDA -->
+      <div class="card text-center">
+        <div class="kpi-label">Projected Store-Level EBITDA</div>
+        <div class="kpi-big" id="res-ebitda">$—</div>
+        <div class="text-sm mt-1" id="res-ebitda-pct">—%</div>
+        <div class="gauge-bar">
+          <div class="gauge-fill" id="gauge-ebitda" style="width:0%; background:var(--red)"></div>
+        </div>
+      </div>
+
+      <!-- Payback + ROIC -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="card text-center">
+          <div class="kpi-label">Payback Period</div>
+          <div class="kpi-big" id="res-payback">— yr</div>
+          <div class="text-xs text-slate-400">on $<span id="res-capex-show">400K</span> CAPEX</div>
+        </div>
+        <div class="card text-center">
+          <div class="kpi-label">ROIC</div>
+          <div class="kpi-big" id="res-roic">—%</div>
+          <div class="text-xs text-slate-400">Return on invested capital</div>
+        </div>
+      </div>
+
+      <!-- Cash flow after debt -->
+      <div class="card text-center">
+        <div class="kpi-label">Annual Cash Flow (After Debt Service)</div>
+        <div class="kpi-big" id="res-cashflow">$—</div>
+        <div class="text-xs text-slate-400">Debt: $<span id="res-loan-show">200K</span> @ 8% / 7yr = $<span id="res-debt">37,600</span>/yr</div>
+      </div>
+
+      <!-- Break-even AUV -->
+      <div class="card text-center">
+        <div class="kpi-label">Break-Even AUV (EBITDA = $0)</div>
+        <div class="kpi-big" id="res-breakeven">$—</div>
+        <div class="text-xs text-slate-400">Revenue below this = losing money</div>
+      </div>
+
+      <!-- Full P&L breakdown -->
+      <div class="card">
+        <h3 class="text-sm font-bold mb-3">Annual P&L Breakdown</h3>
+        <div id="pnl-table"></div>
+      </div>
+
+      <!-- Verdict -->
+      <div class="card text-center" id="verdict-card">
+        <div id="verdict-text" class="text-base font-bold">Adjust sliders to see your projection</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Disclaimer -->
+  <div class="mt-8 text-xs text-slate-600 text-center max-w-2xl mx-auto">
+    Projections based on actual Bellepros Laval H1 2026 operating data (19.6% EBITDA margin) and QSR industry benchmarks.
+    Actual results will vary based on site selection, management quality, market conditions, and operational execution.
+    This calculator is for illustrative purposes and is not a guarantee of performance. Not an offer to sell a franchise.
+  </div>
+</main>
+
+<script>
+const defaults = { capex: 400000, auv: 750000, foodpct: 30, laborpct: 27, rent: 1500, loan: 200000 };
+
+function setPrototype(type) {
+  if (type === 'inline') {
+    document.getElementById('capex').value = 400000;
+    document.getElementById('auv').value = 750000;
+    document.getElementById('btn-inline').className = 'py-2 rounded-lg text-sm font-bold tab-active';
+    document.getElementById('btn-drivethru').className = 'py-2 rounded-lg text-sm font-bold tab-inactive';
+  } else {
+    document.getElementById('capex').value = 550000;
+    document.getElementById('auv').value = 950000;
+    document.getElementById('btn-drivethru').className = 'py-2 rounded-lg text-sm font-bold tab-active';
+    document.getElementById('btn-inline').className = 'py-2 rounded-lg text-sm font-bold tab-inactive';
+  }
+  calc();
+}
+
+function resetDefaults() {
+  Object.keys(defaults).forEach(k => { document.getElementById(k).value = defaults[k]; });
+  setPrototype('inline');
+}
+
+function calc() {
+  const capex = +document.getElementById('capex').value;
+  const auv = +document.getElementById('auv').value;
+  const foodPct = +document.getElementById('foodpct').value;
+  const laborPct = +document.getElementById('laborpct').value;
+  const rentMonthly = +document.getElementById('rent').value;
+  const loan = +document.getElementById('loan').value;
+
+  // Update display values
+  document.getElementById('show-capex').textContent = '$' + capex.toLocaleString();
+  document.getElementById('show-auv').textContent = '$' + auv.toLocaleString();
+  document.getElementById('show-foodpct').textContent = foodPct.toFixed(1) + '%';
+  document.getElementById('show-laborpct').textContent = laborPct.toFixed(1) + '%';
+  document.getElementById('show-rent').textContent = '$' + rentMonthly.toLocaleString() + '/mo';
+  document.getElementById('show-loan').textContent = '$' + loan.toLocaleString();
+
+  // Calculate P&L
+  const revenue = auv;
+  const foodCost = revenue * (foodPct / 100);
+  const labor = revenue * (laborPct / 100);
+  const royalty = revenue * 0.05; // 5%
+  const brandFund = revenue * 0.02; // 2%
+  const localMkt = revenue * 0.01; // 1%
+  const annualRent = rentMonthly * 12;
+  const utilities = revenue * 0.030;
+  const insurance = revenue * 0.012;
+  const repairs = revenue * 0.015;
+  const techFee = 350 * 12; // $350/mo
+  const delivery = revenue * 0.018;
+  const other = revenue * 0.014;
+
+  const totalCosts = foodCost + labor + royalty + brandFund + localMkt + annualRent + utilities + insurance + repairs + techFee + delivery + other;
+  const ebitda = revenue - totalCosts;
+  const ebitdaPct = (ebitda / revenue * 100);
+
+  // Debt service (8% interest, 7-year amortization)
+  const annualRate = 0.08;
+  const years = 7;
+  const monthlyRate = annualRate / 12;
+  const numPayments = years * 12;
+  const monthlyPayment = loan > 0 ? loan * monthlyRate * Math.pow(1 + monthlyRate, numPayments) / (Math.pow(1 + monthlyRate, numPayments) - 1) : 0;
+  const annualDebtService = monthlyPayment * 12;
+  const cashFlow = ebitda - annualDebtService;
+
+  // Payback
+  const payback = ebitda > 0 ? capex / ebitda : 99;
+  const roic = ebitda / capex * 100;
+
+  // Break-even AUV (solve for revenue where EBITDA = 0)
+  // EBITDA = Rev - Rev*(foodPct+laborPct+5%+2%+1%+3%+1.2%+1.5%+1.8%+1.4%) - rent*12 - 4200
+  const variableRate = (foodPct + laborPct) / 100 + 0.05 + 0.02 + 0.01 + 0.03 + 0.012 + 0.015 + 0.018 + 0.014;
+  const fixedCosts = annualRent + 4200; // rent + tech fee
+  const breakEvenAUV = fixedCosts / (1 - variableRate);
+
+  // Display results
+  document.getElementById('res-ebitda').textContent = '$' + Math.round(ebitda).toLocaleString();
+  document.getElementById('res-ebitda-pct').textContent = ebitdaPct.toFixed(1) + '% margin';
+  document.getElementById('res-payback').textContent = payback > 10 ? '10+ yr' : payback.toFixed(1) + ' yr';
+  document.getElementById('res-capex-show').textContent = (capex / 1000).toFixed(0) + 'K';
+  document.getElementById('res-roic').textContent = roic.toFixed(0) + '%';
+  document.getElementById('res-cashflow').textContent = '$' + Math.round(cashFlow).toLocaleString();
+  document.getElementById('res-loan-show').textContent = (loan / 1000).toFixed(0) + 'K';
+  document.getElementById('res-debt').textContent = Math.round(annualDebtService).toLocaleString();
+  document.getElementById('res-breakeven').textContent = '$' + Math.round(breakEvenAUV).toLocaleString();
+
+  // Gauge
+  const ebitdaGauge = document.getElementById('gauge-ebitda');
+  const ebitdaWidth = Math.min(100, Math.max(0, (ebitdaPct / 25) * 100));
+  ebitdaGauge.style.width = ebitdaWidth + '%';
+  if (ebitdaPct >= 18) { ebitdaGauge.style.background = 'var(--green)'; }
+  else if (ebitdaPct >= 12) { ebitdaGauge.style.background = 'var(--accent)'; }
+  else { ebitdaGauge.style.background = 'var(--red)'; }
+
+  // Color results
+  document.getElementById('res-ebitda').className = 'kpi-big ' + (ebitdaPct >= 18 ? 'result-good' : ebitdaPct >= 12 ? 'result-warn' : 'result-bad');
+  document.getElementById('res-payback').className = 'kpi-big ' + (payback <= 3.5 ? 'result-good' : payback <= 5 ? 'result-warn' : 'result-bad');
+  document.getElementById('res-roic').className = 'kpi-big ' + (roic >= 30 ? 'result-good' : roic >= 15 ? 'result-warn' : 'result-bad');
+
+  // P&L Table
+  const items = [
+    ['Revenue', revenue, 100, false],
+    ['Food + Paper', foodCost, foodPct, true],
+    ['Labor (loaded)', labor, laborPct, true],
+    ['Royalty (5%)', royalty, 5, true],
+    ['Brand Fund (2%)', brandFund, 2, true],
+    ['Local Marketing (1%)', localMkt, 1, true],
+    ['Rent (annual)', annualRent, annualRent/revenue*100, true],
+    ['Utilities', utilities, 3.0, true],
+    ['Insurance', insurance, 1.2, true],
+    ['Repairs/Maintenance', repairs, 1.5, true],
+    ['Technology Fee', techFee, techFee/revenue*100, true],
+    ['Delivery Fees', delivery, 1.8, true],
+    ['Other Opex', other, 1.4, true],
+  ];
+
+  let html = '';
+  items.forEach(([label, amt, pct, isCost]) => {
+    const color = isCost ? 'text-slate-400' : 'text-white font-bold';
+    html += `<div class="flex justify-between py-1.5 border-b border-slate-800 text-sm">
+      <span class="${color}">${label}</span>
+      <span class="${color}">$${Math.round(amt).toLocaleString()} <span class="text-xs text-slate-500">${pct.toFixed(1)}%</span></span>
+    </div>`;
+  });
+  html += `<div class="flex justify-between py-2 mt-2 text-base font-bold">
+    <span class="${ebitdaPct >= 18 ? 'result-good' : ebitdaPct >= 12 ? 'result-warn' : 'result-bad'}">EBITDA</span>
+    <span class="${ebitdaPct >= 18 ? 'result-good' : ebitdaPct >= 12 ? 'result-warn' : 'result-bad'}">$${Math.round(ebitda).toLocaleString()} (${ebitdaPct.toFixed(1)}%)</span>
+  </div>`;
+  html += `<div class="flex justify-between py-1.5 text-sm text-slate-400">
+    <span>Less: Debt Service</span>
+    <span>-$${Math.round(annualDebtService).toLocaleString()}</span>
+  </div>`;
+  html += `<div class="flex justify-between py-2 text-base font-bold border-t border-slate-700">
+    <span class="${cashFlow > 0 ? 'result-good' : 'result-bad'}">Net Cash Flow</span>
+    <span class="${cashFlow > 0 ? 'result-good' : 'result-bad'}">$${Math.round(cashFlow).toLocaleString()}</span>
+  </div>`;
+  document.getElementById('pnl-table').innerHTML = html;
+
+  // Verdict
+  const verdictCard = document.getElementById('verdict-card');
+  const verdictText = document.getElementById('verdict-text');
+  if (ebitdaPct >= 18 && payback <= 3.5) {
+    verdictCard.style.borderColor = 'rgba(74,222,128,0.4)';
+    verdictCard.style.background = 'rgba(74,222,128,0.08)';
+    verdictText.className = 'text-base font-bold result-good';
+    verdictText.textContent = '✅ EXCELLENT — Above-average QSR returns. Payback under 3.5 years, EBITDA margin above 18%.';
+  } else if (ebitdaPct >= 12 && payback <= 5) {
+    verdictCard.style.borderColor = 'rgba(232,179,57,0.4)';
+    verdictCard.style.background = 'rgba(232,179,57,0.08)';
+    verdictText.className = 'text-base font-bold result-warn';
+    verdictText.textContent = '🟡 VIABLE — Average QSR returns. Profitable but monitor food cost and labor closely.';
+  } else {
+    verdictCard.style.borderColor = 'rgba(248,113,113,0.4)';
+    verdictCard.style.background = 'rgba(248,113,113,0.08)';
+    verdictText.className = 'text-base font-bold result-bad';
+    verdictText.textContent = '🔴 HIGH RISK — Thin margins or long payback. Reconsider site quality or negotiate lower rent.';
+  }
+}
+
+// Init
+calc();
+</script>
+
+</body>
+</html>
